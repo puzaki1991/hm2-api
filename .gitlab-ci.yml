@@ -1,0 +1,78 @@
+services:
+  - docker:19.03.7-dind
+
+stages:
+  - build
+  - package
+  - deploy
+
+build:
+  image: maven:3-jdk-8
+  stage: build
+  before_script:
+    - source .${CI_COMMIT_REF_NAME}.env
+  script:
+    - mvn clean install -Dspring.profiles.active=$SPRING_ACTIVE_PROFILE && mvn package -B -e -Dspring.profiles.active=$SPRING_ACTIVE_PROFILE
+  artifacts:
+    paths:
+      - target/*.jar
+  only:
+    - staging
+    - master
+
+package:
+  image: gitlab/dind
+  stage: package
+  before_script:
+    - source .${CI_COMMIT_REF_NAME}.env
+  script:
+    - docker build -t $DOCKER_REPO .
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN registry.gitlab.com
+    - docker push $DOCKER_REPO
+  only:
+    - staging
+    - master
+
+deploy-staging:
+  image: ubuntu:latest
+  stage: deploy
+  before_script:
+    - source .${CI_COMMIT_REF_NAME}.env
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+       # Add the SSH Key stored in the SSH_PRIVATE_KEY variable to the agent store
+    - ssh-add <(echo "$DEV_SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
+  script:  
+    - ssh root@$SERVER_IP "docker stop $APP_NAME; docker system prune -a -f; docker pull $DOCKER_REPO; docker container run -d --name $APP_NAME -p $PORT:8080 -e SPRING_PROFILES_ACTIVE=$SPRING_ACTIVE_PROFILE $DOCKER_REPO"
+
+  environment:
+    name: staging
+    url: https://staging-api.playerone.com
+  only:
+    - staging
+
+deploy-prod:
+    image: ubuntu:latest
+    stage: deploy
+    before_script:
+      - source .${CI_COMMIT_REF_NAME}.env
+      - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+      - eval $(ssh-agent -s)
+      # Add the SSH Key stored in the SSH_PRIVATE_KEY variable to the agent store
+      - ssh-add <(echo "$PROD_SSH_PRIVATE_KEY")
+      - mkdir -p ~/.ssh
+      - chmod 700 ~/.ssh
+      - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
+    script:
+      - ssh root@$SERVER_IP "docker stop $APP_NAME; docker system prune -a -f; docker pull $DOCKER_REPO; docker container run -d --name $APP_NAME -p $PORT:8080 -e SPRING_PROFILES_ACTIVE=$SPRING_ACTIVE_PROFILE $DOCKER_REPO"
+
+    environment:
+      name: production
+      url: https://api.playerone.com
+    only:
+      - master
