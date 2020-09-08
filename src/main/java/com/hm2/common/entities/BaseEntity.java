@@ -40,9 +40,9 @@ public abstract class BaseEntity implements Serializable {
     @PrePersist
     public void prePersist() {
         if (!ProjectConstant.Status.INACTIVE.equalsIgnoreCase(isDeleted))
-            isDeleted = ProjectConstant.Flag.Y;
-        else
             isDeleted = ProjectConstant.Flag.N;
+        else
+            isDeleted = ProjectConstant.Flag.Y;
 
         if (StringUtils.isBlank(createdBy)) {
             createdBy = UserLoginUtils.getCurrentUsername();

@@ -2,6 +2,7 @@ package com.hm2.bill.controllers;
 
 import com.hm2.bill.entities.Bill;
 import com.hm2.bill.repositories.BillRepo;
+import com.hm2.bill.services.BillService;
 import com.hm2.common.controllers.BaseController;
 import com.hm2.common.exceptions.InvalidRequestException;
 import org.apache.commons.lang3.StringUtils;
@@ -19,13 +20,16 @@ public class BillController extends BaseController {
     @Autowired
     private BillRepo billRepo;
 
+    @Autowired
+    private BillService billService;
+
     @GetMapping("/get-bill-active")
     public ResponseEntity<?> getBillActive() {
         try {
             List<Bill> rs = billRepo.findByIsShowOrderByCreatedDateDesc(true);
             return ResponseEntity.ok(rs);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
 
@@ -35,7 +39,7 @@ public class BillController extends BaseController {
             List<Bill> rs = billRepo.findAllByOrderByCreatedDateDesc();
             return ResponseEntity.ok(rs);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
 
@@ -48,7 +52,7 @@ public class BillController extends BaseController {
         } catch (InvalidRequestException e) {
             res = ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getMessage(e.getMsg()));
         } catch (Exception e) {
-            res = ResponseEntity.status(500).body(e.getMessage());
+            res = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
         return res;
     }
@@ -62,7 +66,19 @@ public class BillController extends BaseController {
         } catch (Exception e) {
             res = ResponseEntity.status(500).body(e.getMessage());
         }
-        ;
         return res;
     }
+
+    @PostMapping("/pay/{id}")
+    public ResponseEntity<?> pay(@PathVariable long id) {
+        ResponseEntity<?> res = null;
+        try {
+            billService.pay(id);
+            res = (ResponseEntity<?>) ResponseEntity.ok();
+        } catch (Exception e) {
+            res = ResponseEntity.status(500).body(e.getMessage());
+        }
+        return res;
+    }
+
 }
